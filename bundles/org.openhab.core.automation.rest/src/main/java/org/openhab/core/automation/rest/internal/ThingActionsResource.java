@@ -13,7 +13,12 @@
 package org.openhab.core.automation.rest.internal;
 
 import java.lang.reflect.Method;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,7 +50,11 @@ import org.openhab.core.automation.type.Input;
 import org.openhab.core.automation.type.ModuleTypeRegistry;
 import org.openhab.core.automation.type.Output;
 import org.openhab.core.automation.util.ModuleBuilder;
+import org.openhab.core.config.core.ConfigDescriptionParameter;
+import org.openhab.core.config.core.ConfigDescriptionParameterBuilder;
 import org.openhab.core.config.core.Configuration;
+import org.openhab.core.config.core.dto.ConfigDescriptionDTOMapper;
+import org.openhab.core.config.core.dto.ConfigDescriptionParameterDTO;
 import org.openhab.core.io.rest.LocaleService;
 import org.openhab.core.io.rest.RESTConstants;
 import org.openhab.core.io.rest.RESTResource;
@@ -64,6 +73,8 @@ import org.osgi.service.jaxrs.whiteboard.propertytypes.JSONRequired;
 import org.osgi.service.jaxrs.whiteboard.propertytypes.JaxrsApplicationSelect;
 import org.osgi.service.jaxrs.whiteboard.propertytypes.JaxrsName;
 import org.osgi.service.jaxrs.whiteboard.propertytypes.JaxrsResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -88,6 +99,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @NonNullByDefault
 public class ThingActionsResource implements RESTResource {
     public static final String PATH_THINGS = "actions";
+
+    private final Logger logger = LoggerFactory.getLogger(ThingActionsResource.class);
 
     private final LocaleService localeService;
     private final ModuleTypeRegistry moduleTypeRegistry;
@@ -171,11 +184,24 @@ public class ThingActionsResource implements RESTResource {
                     continue;
                 }
 
+                List<ConfigDescriptionParameter> inputParameters = new ArrayList<>();
+                for (Input input : actionType.getInputs()) {
+                    ConfigDescriptionParameter parameter = convertToConfigDescriptionParameter(input);
+                    if (parameter != null) {
+                        inputParameters.add(parameter);
+                    } else {
+                        inputParameters = null;
+                        break;
+                    }
+                }
+
                 ThingActionDTO actionDTO = new ThingActionDTO();
                 actionDTO.actionUid = actionType.getUID();
                 actionDTO.description = actionType.getDescription();
                 actionDTO.label = actionType.getLabel();
                 actionDTO.inputs = actionType.getInputs();
+                actionDTO.inputConfigDescriptions = inputParameters == null ? null
+                        : ConfigDescriptionDTOMapper.mapParameters(inputParameters);
                 actionDTO.outputs = actionType.getOutputs();
                 actions.add(actionDTO);
             }
@@ -221,13 +247,187 @@ public class ThingActionsResource implements RESTResource {
         }
 
         try {
-            Map<String, Object> returnValue = Objects.requireNonNullElse(handler.execute(actionInputs), Map.of());
+            Map<String, Object> returnValue = Objects.requireNonNullElse(
+                    handler.execute(adjustTypForfMethodArguments(actionType, actionInputs)), Map.of());
             moduleHandlerFactory.ungetHandler(action, ruleUID, handler);
             return Response.ok(returnValue).build();
         } catch (Exception e) {
             moduleHandlerFactory.ungetHandler(action, ruleUID, handler);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e).build();
         }
+    }
+
+    private @Nullable ConfigDescriptionParameter convertToConfigDescriptionParameter(Input input) {
+        boolean supported = true;
+        ConfigDescriptionParameter.Type parameterType = ConfigDescriptionParameter.Type.TEXT;
+        String defaultValue = null;
+        boolean required = false;
+        String context = null;
+        switch (input.getType()) {
+            case "boolean":
+                defaultValue = "false";
+                required = true;
+            case "java.lang.Boolean":
+                parameterType = ConfigDescriptionParameter.Type.BOOLEAN;
+                break;
+            case "byte":
+            case "short":
+            case "int":
+            case "long":
+                defaultValue = "0";
+                required = true;
+            case "java.lang.Byte":
+            case "java.lang.Short":
+            case "java.lang.Integer":
+            case "java.lang.Long":
+                parameterType = ConfigDescriptionParameter.Type.INTEGER;
+                break;
+            case "float":
+            case "double":
+                defaultValue = "0";
+                required = true;
+            case "java.lang.Float":
+            case "java.lang.Double":
+                parameterType = ConfigDescriptionParameter.Type.DECIMAL;
+                break;
+            case "java.lang.String":
+                parameterType = ConfigDescriptionParameter.Type.TEXT;
+                break;
+            case "java.time.LocalDate":
+                parameterType = ConfigDescriptionParameter.Type.TEXT;
+                context = "date";
+                break;
+            case "java.time.LocalTime":
+                parameterType = ConfigDescriptionParameter.Type.TEXT;
+                context = "time";
+                break;
+            case "java.time.LocalDateTime":
+            case "java.time.ZonedDateTime":
+                parameterType = ConfigDescriptionParameter.Type.TEXT;
+                context = "datetime";
+                break;
+            default:
+                supported = false;
+                break;
+        }
+        if (!supported) {
+            logger.warn("Unsupported input parameter '{}' having type {}", input.getName(), input.getType());
+            return null;
+        }
+
+        ConfigDescriptionParameterBuilder builder = ConfigDescriptionParameterBuilder
+                .create(input.getName(), parameterType).withLabel(input.getLabel())
+                .withDescription(input.getDescription()).withReadOnly(false)
+                .withRequired(required || input.isRequired()).withContext(context);
+        if (!input.getDefaultValue().isEmpty()) {
+            builder = builder.withDefault(input.getDefaultValue());
+        } else if (defaultValue != null) {
+            builder = builder.withDefault(defaultValue);
+        }
+        return builder.build();
+    }
+
+    private Map<String, Object> adjustTypForfMethodArguments(ActionType actionType, Map<String, Object> arguments) {
+        Map<String, Object> newArguments = new HashMap<>();
+        for (Input input : actionType.getInputs()) {
+            String name = input.getName();
+            Object value = arguments.get(name);
+            if (value == null) {
+                continue;
+            }
+            switch (input.getType()) {
+                case "byte":
+                case "java.lang.Byte":
+                    if (value instanceof Double valueDouble) {
+                        newArguments.put(name, Byte.valueOf(valueDouble.byteValue()));
+                    } else if (value instanceof String valueString) {
+                        newArguments.put(name, Byte.valueOf(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "short":
+                case "java.lang.Short":
+                    if (value instanceof Double valueDouble) {
+                        newArguments.put(name, Short.valueOf(valueDouble.shortValue()));
+                    } else if (value instanceof String valueString) {
+                        newArguments.put(name, Short.valueOf(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "int":
+                case "java.lang.Integer":
+                    if (value instanceof Double valueDouble) {
+                        newArguments.put(name, Integer.valueOf(valueDouble.intValue()));
+                    } else if (value instanceof String valueString) {
+                        newArguments.put(name, Integer.valueOf(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "long":
+                case "java.lang.Long":
+                    if (value instanceof Double valueDouble) {
+                        newArguments.put(name, Long.valueOf(valueDouble.longValue()));
+                    } else if (value instanceof String valueString) {
+                        newArguments.put(name, Long.valueOf(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "float":
+                case "java.lang.Float":
+                    if (value instanceof Double valueDouble) {
+                        newArguments.put(name, Float.valueOf(valueDouble.floatValue()));
+                    } else if (value instanceof String valueString) {
+                        newArguments.put(name, Float.valueOf(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "double":
+                case "java.lang.Double":
+                    if (value instanceof String valueString) {
+                        newArguments.put(name, Double.valueOf(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "java.time.LocalDate":
+                    if (value instanceof String valueString) {
+                        newArguments.put(name, LocalDate.parse(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "java.time.LocalTime":
+                    if (value instanceof String valueString) {
+                        newArguments.put(name, LocalTime.parse(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "java.time.LocalDateTime":
+                    if (value instanceof String valueString) {
+                        newArguments.put(name, LocalDateTime.parse(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                case "java.time.ZonedDateTime":
+                    if (value instanceof String valueString) {
+                        newArguments.put(name, ZonedDateTime.parse(valueString));
+                    } else {
+                        newArguments.put(name, value);
+                    }
+                    break;
+                default:
+                    newArguments.put(name, value);
+                    break;
+            }
+        }
+        return newArguments;
     }
 
     private @Nullable String getScope(ThingActions actions) {
@@ -245,6 +445,9 @@ public class ThingActionsResource implements RESTResource {
         public @Nullable String description;
 
         public List<Input> inputs = new ArrayList<>();
+
+        public @Nullable List<ConfigDescriptionParameterDTO> inputConfigDescriptions;
+
         public List<Output> outputs = new ArrayList<>();
     }
 }

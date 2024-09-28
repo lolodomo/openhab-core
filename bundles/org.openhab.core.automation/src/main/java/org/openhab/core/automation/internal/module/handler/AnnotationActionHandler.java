@@ -84,8 +84,20 @@ public class AnnotationActionHandler extends BaseActionModuleHandler {
         }
 
         Object result = null;
+        Object @Nullable [] arguments = args.toArray();
+        if (arguments.length > 0 && logger.isDebugEnabled()) {
+            logger.debug("Calling action method {} with the following arguments:", method.getName());
+            for (int i = 0; i < arguments.length; i++) {
+                if (arguments[i] == null) {
+                    logger.debug("  - Argument {}: null", i + 1);
+                } else {
+                    logger.debug("  - Argument {}: type {} value {}", i + 1, arguments[i].getClass().getCanonicalName(),
+                            arguments[i]);
+                }
+            }
+        }
         try {
-            result = method.invoke(this.actionProvider, args.toArray());
+            result = method.invoke(this.actionProvider, arguments);
         } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
             logger.error("Could not call method '{}' from module type '{}'.", method, moduleType.getUID(), e);
         }
