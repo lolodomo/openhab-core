@@ -46,6 +46,7 @@ import org.openhab.core.automation.type.ModuleTypeRegistry;
 import org.openhab.core.automation.type.Output;
 import org.openhab.core.automation.util.ModuleBuilder;
 import org.openhab.core.automation.util.mapper.ActionInputsToConfigDescriptionParameters;
+import org.openhab.core.automation.util.mapper.SerialisedInputsToActionInputs;
 import org.openhab.core.config.core.ConfigDescriptionParameter;
 import org.openhab.core.config.core.Configuration;
 import org.openhab.core.config.core.dto.ConfigDescriptionDTOMapper;
@@ -234,7 +235,8 @@ public class ThingActionsResource implements RESTResource {
         }
 
         try {
-            Map<String, Object> returnValue = Objects.requireNonNullElse(handler.execute(actionInputs), Map.of());
+            Map<String, Object> returnValue = Objects.requireNonNullElse(
+                    handler.execute(SerialisedInputsToActionInputs.map(actionType, actionInputs)), Map.of());
             moduleHandlerFactory.ungetHandler(action, ruleUID, handler);
             return Response.ok(returnValue).build();
         } catch (Exception e) {

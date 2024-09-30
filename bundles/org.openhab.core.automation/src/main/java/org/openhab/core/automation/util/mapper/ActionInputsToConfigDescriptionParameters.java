@@ -33,7 +33,7 @@ public class ActionInputsToConfigDescriptionParameters {
     private static final Logger LOGGER = LoggerFactory.getLogger(ActionInputsToConfigDescriptionParameters.class);
 
     /**
-     * Maps a list of {@link Input} to a list of {@link ConfigDescriptionParameter}.
+     * Maps a list of {@link Input}s to a list of {@link ConfigDescriptionParameter}s.
      *
      * @param inputs the list of inputs to map to config description parameters
      * @return the list of config description parameters or null if an input parameter has an unsupported type
