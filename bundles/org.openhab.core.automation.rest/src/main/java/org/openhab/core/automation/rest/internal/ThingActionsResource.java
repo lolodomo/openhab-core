@@ -182,6 +182,9 @@ public class ThingActionsResource implements RESTResource {
 
                 List<ConfigDescriptionParameter> inputParameters = ActionInputsToConfigDescriptionParameters
                         .map(actionType.getInputs());
+                if (inputParameters == null) {
+                    logger.info("Thing action {} has an input with an unsupported type, hiding it in the UI.", actionType.getUID());
+                }
 
                 ThingActionDTO actionDTO = new ThingActionDTO();
                 actionDTO.actionUid = actionType.getUID();

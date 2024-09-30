@@ -181,6 +181,7 @@ public class AnnotationActionModuleTypeHelper {
                 } else {
                     // we have an input without a supported type, so hide the Thing action
                     visibility = Visibility.HIDDEN;
+                    logger.info("Thing action {} has an input with an unsupported type, hiding it in the UI.", uid);
                 }
             }
 
