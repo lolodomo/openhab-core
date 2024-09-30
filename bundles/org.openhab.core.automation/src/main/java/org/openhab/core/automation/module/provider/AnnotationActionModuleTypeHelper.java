@@ -39,7 +39,7 @@ import org.openhab.core.automation.type.ActionType;
 import org.openhab.core.automation.type.Input;
 import org.openhab.core.automation.type.ModuleTypeProvider;
 import org.openhab.core.automation.type.Output;
-import org.openhab.core.automation.util.mapper.ThingActionInputsToConfigDescriptionParameters;
+import org.openhab.core.automation.util.mapper.ActionInputsToConfigDescriptionParameters;
 import org.openhab.core.config.core.ConfigDescriptionParameter;
 import org.openhab.core.config.core.ConfigDescriptionParameter.Type;
 import org.openhab.core.config.core.ConfigDescriptionParameterBuilder;
@@ -173,7 +173,7 @@ public class AnnotationActionModuleTypeHelper {
 
             if (kind == ActionModuleKind.THING) {
                 // we have a Thing module, so we have to map the inputs to config description parameters for the UI
-                List<ConfigDescriptionParameter> inputConfigDescriptions = ThingActionInputsToConfigDescriptionParameters
+                List<ConfigDescriptionParameter> inputConfigDescriptions = ActionInputsToConfigDescriptionParameters
                         .map(mi.getInputs());
                 if (inputConfigDescriptions != null) {
                     // all inputs have a supported type

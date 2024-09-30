@@ -24,14 +24,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * This is a utility class to convert {@link org.openhab.core.thing.binding.ThingActions} {@link Input}s to
- * {@link ConfigDescriptionParameter}s.
+ * This is a utility class to convert action {@link Input}s to {@link ConfigDescriptionParameter}s.
  *
  * @author Laurent Garnier - Initial contribution
  */
 @NonNullByDefault
-public class ThingActionInputsToConfigDescriptionParameters {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ThingActionInputsToConfigDescriptionParameters.class);
+public class ActionInputsToConfigDescriptionParameters {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ActionInputsToConfigDescriptionParameters.class);
 
     /**
      * Maps a list of {@link Input} to a list of {@link ConfigDescriptionParameter}.
@@ -43,7 +42,7 @@ public class ThingActionInputsToConfigDescriptionParameters {
         List<ConfigDescriptionParameter> configDescriptionParameters = new ArrayList<>();
 
         for (Input input : inputs) {
-            ConfigDescriptionParameter parameter = ThingActionInputsToConfigDescriptionParameters.map(input);
+            ConfigDescriptionParameter parameter = ActionInputsToConfigDescriptionParameters.map(input);
             if (parameter != null) {
                 configDescriptionParameters.add(parameter);
             } else {
@@ -95,27 +94,25 @@ public class ThingActionInputsToConfigDescriptionParameters {
                 parameterType = ConfigDescriptionParameter.Type.DECIMAL;
                 break;
             case "java.lang.String":
-                parameterType = ConfigDescriptionParameter.Type.TEXT;
                 break;
             case "java.time.LocalDate":
-                parameterType = ConfigDescriptionParameter.Type.TEXT;
                 context = "date";
                 break;
             case "java.time.LocalTime":
-                parameterType = ConfigDescriptionParameter.Type.TEXT;
                 context = "time";
                 break;
             case "java.time.LocalDateTime":
             case "java.time.ZonedDateTime":
-                parameterType = ConfigDescriptionParameter.Type.TEXT;
                 context = "datetime";
+                break;
+            case "org.openhab.core.library.types.QuantityType":
                 break;
             default:
                 supported = false;
                 break;
         }
         if (!supported) {
-            LOGGER.warn("Unsupported input parameter '{}' having type {}", input.getName(), input.getType());
+            LOGGER.info("Unsupported input parameter '{}' having type {}", input.getName(), input.getType());
             return null;
         }
 

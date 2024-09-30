@@ -23,6 +23,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.core.automation.type.ActionType;
 import org.openhab.core.automation.type.Input;
+import org.openhab.core.library.types.QuantityType;
 
 /**
  * This is a utility class to convert serialised inputs to the Java types required by the {@link Input}s of a
@@ -141,6 +142,13 @@ public class SerialisedInputsToActionInputs {
             case "java.time.ZonedDateTime" -> {
                 if (argument instanceof String valueString) {
                     yield ZonedDateTime.parse(valueString);
+                } else {
+                    yield argument;
+                }
+            }
+            case "org.openhab.core.library.types.QuantityType" -> {
+                if (argument instanceof String valueString) {
+                    yield QuantityType.valueOf(valueString);
                 } else {
                     yield argument;
                 }

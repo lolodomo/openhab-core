@@ -45,7 +45,7 @@ import org.openhab.core.automation.type.Input;
 import org.openhab.core.automation.type.ModuleTypeRegistry;
 import org.openhab.core.automation.type.Output;
 import org.openhab.core.automation.util.ModuleBuilder;
-import org.openhab.core.automation.util.mapper.ThingActionInputsToConfigDescriptionParameters;
+import org.openhab.core.automation.util.mapper.ActionInputsToConfigDescriptionParameters;
 import org.openhab.core.config.core.ConfigDescriptionParameter;
 import org.openhab.core.config.core.Configuration;
 import org.openhab.core.config.core.dto.ConfigDescriptionDTOMapper;
@@ -179,7 +179,7 @@ public class ThingActionsResource implements RESTResource {
                     continue;
                 }
 
-                List<ConfigDescriptionParameter> inputParameters = ThingActionInputsToConfigDescriptionParameters
+                List<ConfigDescriptionParameter> inputParameters = ActionInputsToConfigDescriptionParameters
                         .map(actionType.getInputs());
 
                 ThingActionDTO actionDTO = new ThingActionDTO();
