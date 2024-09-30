@@ -39,6 +39,7 @@ import org.openhab.core.automation.type.ActionType;
 import org.openhab.core.automation.type.Input;
 import org.openhab.core.automation.type.ModuleTypeProvider;
 import org.openhab.core.automation.type.Output;
+import org.openhab.core.automation.util.mapper.ThingActionInputsToConfigDescriptionParameters;
 import org.openhab.core.config.core.ConfigDescriptionParameter;
 import org.openhab.core.config.core.ConfigDescriptionParameter.Type;
 import org.openhab.core.config.core.ConfigDescriptionParameterBuilder;
@@ -77,7 +78,7 @@ public class AnnotationActionModuleTypeHelper {
         for (Method method : methods) {
             if (method.isAnnotationPresent(RuleAction.class)) {
                 List<Input> inputs = getInputsFromAction(method);
-                List<Output> outputs = getOutputsFromMethod(method);
+                List<Output> outputs = getOutputsFromAction(method);
 
                 RuleAction ruleAction = method.getAnnotation(RuleAction.class);
                 String uid = name + "." + method.getName();
@@ -86,10 +87,7 @@ public class AnnotationActionModuleTypeHelper {
                 ModuleInformation mi = new ModuleInformation(uid, actionProvider, method);
                 mi.setLabel(ruleAction.label());
                 mi.setDescription(ruleAction.description());
-                // We temporarily want to hide all ThingActions in UIs as we do not have a proper solution to enter
-                // their input values (see https://github.com/openhab/openhab-core/issues/1745)
-                // mi.setVisibility(ruleAction.visibility());
-                mi.setVisibility(Visibility.HIDDEN);
+                mi.setVisibility(ruleAction.visibility());
                 mi.setInputs(inputs);
                 mi.setOutputs(outputs);
                 mi.setTags(tags);
@@ -132,7 +130,7 @@ public class AnnotationActionModuleTypeHelper {
         return inputs;
     }
 
-    private List<Output> getOutputsFromMethod(Method method) {
+    private List<Output> getOutputsFromAction(Method method) {
         List<Output> outputs = new ArrayList<>();
         if (method.isAnnotationPresent(ActionOutputs.class)) {
             for (ActionOutput ruleActionOutput : method.getAnnotationsByType(ActionOutput.class)) {
@@ -170,8 +168,24 @@ public class AnnotationActionModuleTypeHelper {
             if (configParam != null) {
                 configDescriptions.add(configParam);
             }
-            return new ActionType(uid, configDescriptions, mi.getLabel(), mi.getDescription(), mi.getTags(),
-                    mi.getVisibility(), mi.getInputs(), mi.getOutputs());
+
+            Visibility visibility = mi.getVisibility();
+
+            if (kind == ActionModuleKind.THING) {
+                // we have a Thing module, so we have to map the inputs to config description parameters for the UI
+                List<ConfigDescriptionParameter> inputConfigDescriptions = ThingActionInputsToConfigDescriptionParameters
+                        .map(mi.getInputs());
+                if (inputConfigDescriptions != null) {
+                    // all inputs have a supported type
+                    configDescriptions.addAll(inputConfigDescriptions);
+                } else {
+                    // we have an input without a supported type, so hide the Thing action
+                    visibility = Visibility.HIDDEN;
+                }
+            }
+
+            return new ActionType(uid, configDescriptions, mi.getLabel(), mi.getDescription(), mi.getTags(), visibility,
+                    mi.getInputs(), mi.getOutputs());
         }
         return null;
     }
