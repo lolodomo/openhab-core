@@ -51,7 +51,7 @@ public class SerialisedInputsToActionInputs {
         for (Input input : actionType.getInputs()) {
             String name = input.getName();
             Object value = arguments.get(name);
-            value = map(input, value);
+            value = map(actionType, input, value);
             if (value == null) {
                 continue;
             }
@@ -63,119 +63,67 @@ public class SerialisedInputsToActionInputs {
     /**
      * Maps a serialised input to the Java type required by the given {@link Input}.
      *
+     * @param actionType the action type whose inputs to consider
      * @param input the input whose type to consider
      * @param argument the serialised argument
      * @return the mapped argument or null if the input argument was null or mapping failed
      */
-    public static @Nullable Object map(Input input, Object argument) {
+    public static @Nullable Object map(ActionType actionType, Input input, @Nullable Object argument) {
         if (argument == null) {
             return null;
         }
-        try {
-            return switch (input.getType()) {
-                case "byte", "java.lang.Byte" -> {
-                    if (argument instanceof Double valueDouble) {
-                        yield Byte.valueOf(valueDouble.byteValue());
-                    } else if (argument instanceof String valueString) {
-                        yield Byte.valueOf(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "short", "java.lang.Short" -> {
-                    if (argument instanceof Double valueDouble) {
-                        yield Short.valueOf(valueDouble.shortValue());
-                    } else if (argument instanceof String valueString) {
-                        yield Short.valueOf(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "int", "java.lang.Integer" -> {
-                    if (argument instanceof Double valueDouble) {
-                        yield Integer.valueOf(valueDouble.intValue());
-                    } else if (argument instanceof String valueString) {
-                        yield Integer.valueOf(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "long", "java.lang.Long" -> {
-                    if (argument instanceof Double valueDouble) {
-                        yield Long.valueOf(valueDouble.longValue());
-                    } else if (argument instanceof String valueString) {
-                        yield Long.valueOf(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "float", "java.lang.Float" -> {
-                    if (argument instanceof Double valueDouble) {
-                        yield Float.valueOf(valueDouble.floatValue());
-                    } else if (argument instanceof String valueString) {
-                        yield Float.valueOf(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "double", "java.lang.Double" -> {
-                    if (argument instanceof String valueString) {
-                        yield Double.valueOf(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "java.time.LocalDate" -> {
-                    if (argument instanceof String valueString) {
-                        yield LocalDate.parse(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "java.time.LocalTime" -> {
-                    if (argument instanceof String valueString) {
-                        yield LocalTime.parse(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "java.time.LocalDateTime" -> {
-                    if (argument instanceof String valueString) {
-                        yield LocalDateTime.parse(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "java.time.ZonedDateTime" -> {
-                    if (argument instanceof String valueString) {
-                        yield ZonedDateTime.parse(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "org.openhab.core.library.types.DecimalType" -> {
-                    if (argument instanceof Double valueDouble) {
-                        yield new DecimalType(valueDouble);
-                    } else if (argument instanceof String valueString) {
-                        yield new DecimalType(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                case "org.openhab.core.library.types.QuantityType" -> {
-                    if (argument instanceof String valueString) {
-                        yield QuantityType.valueOf(valueString);
-                    } else {
-                        yield argument;
-                    }
-                }
-                default -> argument;
-            };
-        } catch (NumberFormatException | DateTimeParseException e) {
-            LOGGER.warn(
-                    "Action input parameter '{}': Converting value '{}' into type {} failed! Input parameter is ignored.",
-                    input.getName(), argument, input.getType());
-            return null;
+        if (argument instanceof Double valueDouble) {
+            // When an integer value is provided as input value, the value type in the Map is Double.
+            // We have to convert Double type into the target type.
+            try {
+                return switch (input.getType()) {
+                    case "byte", "java.lang.Byte" -> Byte.valueOf(valueDouble.byteValue());
+                    case "short", "java.lang.Short" -> Short.valueOf(valueDouble.shortValue());
+                    case "int", "java.lang.Integer" -> Integer.valueOf(valueDouble.intValue());
+                    case "long", "java.lang.Long" -> Long.valueOf(valueDouble.longValue());
+                    case "float", "java.lang.Float" -> Float.valueOf(valueDouble.floatValue());
+                    case "org.openhab.core.library.types.DecimalType" -> new DecimalType(valueDouble);
+                    default -> argument;
+                };
+            } catch (NumberFormatException e) {
+                LOGGER.warn(
+                        "Action {} input parameter '{}': converting value {} into type {} failed! Input parameter is ignored.",
+                        actionType.getUID(), input.getName(), argument, input.getType());
+            }
+        } else if (argument instanceof String valueString) {
+            // String value is accepted to instantiate few target types
+            try {
+                return switch (input.getType()) {
+                    case "boolean", "java.lang.Boolean" -> Boolean.valueOf(valueString.toLowerCase());
+                    case "byte", "java.lang.Byte" -> Byte.valueOf(valueString);
+                    case "short", "java.lang.Short" -> Short.valueOf(valueString);
+                    case "int", "java.lang.Integer" -> Integer.valueOf(valueString);
+                    case "long", "java.lang.Long" -> Long.valueOf(valueString);
+                    case "float", "java.lang.Float" -> Float.valueOf(valueString);
+                    case "double", "java.lang.Double" -> Double.valueOf(valueString);
+                    case "org.openhab.core.library.types.DecimalType" -> new DecimalType(valueString);
+                    case "java.time.LocalDate" ->
+                        // Accepted format is: 2007-12-03
+                        LocalDate.parse(valueString);
+                    case "java.time.LocalTime" ->
+                        // Accepted format is: 10:15:30
+                        LocalTime.parse(valueString);
+                    case "java.time.LocalDateTime" ->
+                        // Accepted format is: 2007-12-03T10:15:30
+                        // TODO documentation mention YYYY-MM-DD hh:mm
+                        LocalDateTime.parse(valueString);
+                    case "java.time.ZonedDateTime" ->
+                        // Accepted format is: 2007-12-03T10:15:30+01:00[Europe/Paris]
+                        ZonedDateTime.parse(valueString);
+                    case "org.openhab.core.library.types.QuantityType" -> new QuantityType<>(valueString);
+                    default -> argument;
+                };
+            } catch (NumberFormatException | DateTimeParseException e) {
+                LOGGER.warn(
+                        "Action {} input parameter '{}': converting value '{}' into type {} failed! Input parameter is ignored.",
+                        actionType.getUID(), input.getName(), argument, input.getType());
+            }
         }
+        return argument;
     }
 }

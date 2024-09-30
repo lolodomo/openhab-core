@@ -73,7 +73,7 @@ public class AnnotationActionHandler extends BaseActionModuleHandler {
                         Object value = context.get(inputAnnotation.name());
                         // fallback to configuration as this is where the UI stores the input values
                         if (value == null) {
-                            value = SerialisedInputsToActionInputs.map(moduleType.getInputs().get(i),
+                            value = SerialisedInputsToActionInputs.map(moduleType, moduleType.getInputs().get(i),
                                     module.getConfiguration().get(inputAnnotation.name()));
                         }
                         args.add(i, value);
