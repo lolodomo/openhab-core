@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +60,7 @@ import org.openhab.core.io.rest.LocaleService;
 import org.openhab.core.io.rest.RESTConstants;
 import org.openhab.core.io.rest.RESTResource;
 import org.openhab.core.io.rest.Stream2JSONInputStream;
+import org.openhab.core.library.types.DecimalType;
 import org.openhab.core.thing.ThingUID;
 import org.openhab.core.thing.binding.ThingActions;
 import org.openhab.core.thing.binding.ThingActionsScope;
@@ -288,6 +290,7 @@ public class ThingActionsResource implements RESTResource {
                 required = true;
             case "java.lang.Float":
             case "java.lang.Double":
+            case "org.openhab.core.library.types.DecimalType":
                 parameterType = ConfigDescriptionParameter.Type.DECIMAL;
                 break;
             case "java.lang.String":
@@ -311,7 +314,8 @@ public class ThingActionsResource implements RESTResource {
                 break;
         }
         if (!supported) {
-            logger.warn("Unsupported input parameter '{}' having type {}", input.getName(), input.getType());
+            logger.debug("Input parameter '{}' with type {} cannot be converted into a config description parameter!",
+                    input.getName(), input.getType());
             return null;
         }
 
@@ -335,96 +339,106 @@ public class ThingActionsResource implements RESTResource {
             if (value == null) {
                 continue;
             }
-            switch (input.getType()) {
-                case "byte":
-                case "java.lang.Byte":
-                    if (value instanceof Double valueDouble) {
-                        newArguments.put(name, Byte.valueOf(valueDouble.byteValue()));
-                    } else if (value instanceof String valueString) {
-                        newArguments.put(name, Byte.valueOf(valueString));
-                    } else {
-                        newArguments.put(name, value);
+            if (value instanceof Double valueDouble) {
+                // When an integer value is provided as input value, the value type in the Map is Double.
+                // We have to convert Double type into the target type.
+                try {
+                    switch (input.getType()) {
+                        case "byte":
+                        case "java.lang.Byte":
+                            newArguments.put(name, Byte.valueOf(valueDouble.byteValue()));
+                            break;
+                        case "short":
+                        case "java.lang.Short":
+                            newArguments.put(name, Short.valueOf(valueDouble.shortValue()));
+                            break;
+                        case "int":
+                        case "java.lang.Integer":
+                            newArguments.put(name, Integer.valueOf(valueDouble.intValue()));
+                            break;
+                        case "long":
+                        case "java.lang.Long":
+                            newArguments.put(name, Long.valueOf(valueDouble.longValue()));
+                            break;
+                        case "float":
+                        case "java.lang.Float":
+                            newArguments.put(name, Float.valueOf(valueDouble.floatValue()));
+                            break;
+                        case "org.openhab.core.library.types.DecimalType":
+                            newArguments.put(name, new DecimalType(valueDouble));
+                            break;
+                        default:
+                            newArguments.put(name, value);
+                            break;
                     }
-                    break;
-                case "short":
-                case "java.lang.Short":
-                    if (value instanceof Double valueDouble) {
-                        newArguments.put(name, Short.valueOf(valueDouble.shortValue()));
-                    } else if (value instanceof String valueString) {
-                        newArguments.put(name, Short.valueOf(valueString));
-                    } else {
-                        newArguments.put(name, value);
+                } catch (NumberFormatException e) {
+                    logger.warn(
+                            "Action {} input parameter '{}': converting value {} into type {} failed! Input parameter is ignored.",
+                            actionType.getUID(), input.getName(), value, input.getType());
+                }
+            } else if (value instanceof String valueString) {
+                // String value is accepted to instantiate few target types
+                try {
+                    switch (input.getType()) {
+                        case "boolean":
+                        case "java.lang.Boolean":
+                            newArguments.put(name, Boolean.valueOf(valueString.toLowerCase()));
+                            break;
+                        case "byte":
+                        case "java.lang.Byte":
+                            newArguments.put(name, Byte.valueOf(valueString));
+                            break;
+                        case "short":
+                        case "java.lang.Short":
+                            newArguments.put(name, Short.valueOf(valueString));
+                            break;
+                        case "int":
+                        case "java.lang.Integer":
+                            newArguments.put(name, Integer.valueOf(valueString));
+                            break;
+                        case "long":
+                        case "java.lang.Long":
+                            newArguments.put(name, Long.valueOf(valueString));
+                            break;
+                        case "float":
+                        case "java.lang.Float":
+                            newArguments.put(name, Float.valueOf(valueString));
+                            break;
+                        case "double":
+                        case "java.lang.Double":
+                            newArguments.put(name, Double.valueOf(valueString));
+                            break;
+                        case "org.openhab.core.library.types.DecimalType":
+                            newArguments.put(name, new DecimalType(valueString));
+                            break;
+                        case "java.time.LocalDate":
+                            // Accepted format is: 2007-12-03
+                            newArguments.put(name, LocalDate.parse(valueString));
+                            break;
+                        case "java.time.LocalTime":
+                            // Accepted format is: 10:15:30
+                            newArguments.put(name, LocalTime.parse(valueString));
+                            break;
+                        case "java.time.LocalDateTime":
+                            // Accepted format is: 2007-12-03T10:15:30
+                            // TODO documentation mention YYYY-MM-DD hh:mm
+                            newArguments.put(name, LocalDateTime.parse(valueString));
+                            break;
+                        case "java.time.ZonedDateTime":
+                            // Accepted format is: 2007-12-03T10:15:30+01:00[Europe/Paris]
+                            newArguments.put(name, ZonedDateTime.parse(valueString));
+                            break;
+                        default:
+                            newArguments.put(name, value);
+                            break;
                     }
-                    break;
-                case "int":
-                case "java.lang.Integer":
-                    if (value instanceof Double valueDouble) {
-                        newArguments.put(name, Integer.valueOf(valueDouble.intValue()));
-                    } else if (value instanceof String valueString) {
-                        newArguments.put(name, Integer.valueOf(valueString));
-                    } else {
-                        newArguments.put(name, value);
-                    }
-                    break;
-                case "long":
-                case "java.lang.Long":
-                    if (value instanceof Double valueDouble) {
-                        newArguments.put(name, Long.valueOf(valueDouble.longValue()));
-                    } else if (value instanceof String valueString) {
-                        newArguments.put(name, Long.valueOf(valueString));
-                    } else {
-                        newArguments.put(name, value);
-                    }
-                    break;
-                case "float":
-                case "java.lang.Float":
-                    if (value instanceof Double valueDouble) {
-                        newArguments.put(name, Float.valueOf(valueDouble.floatValue()));
-                    } else if (value instanceof String valueString) {
-                        newArguments.put(name, Float.valueOf(valueString));
-                    } else {
-                        newArguments.put(name, value);
-                    }
-                    break;
-                case "double":
-                case "java.lang.Double":
-                    if (value instanceof String valueString) {
-                        newArguments.put(name, Double.valueOf(valueString));
-                    } else {
-                        newArguments.put(name, value);
-                    }
-                    break;
-                case "java.time.LocalDate":
-                    if (value instanceof String valueString) {
-                        newArguments.put(name, LocalDate.parse(valueString));
-                    } else {
-                        newArguments.put(name, value);
-                    }
-                    break;
-                case "java.time.LocalTime":
-                    if (value instanceof String valueString) {
-                        newArguments.put(name, LocalTime.parse(valueString));
-                    } else {
-                        newArguments.put(name, value);
-                    }
-                    break;
-                case "java.time.LocalDateTime":
-                    if (value instanceof String valueString) {
-                        newArguments.put(name, LocalDateTime.parse(valueString));
-                    } else {
-                        newArguments.put(name, value);
-                    }
-                    break;
-                case "java.time.ZonedDateTime":
-                    if (value instanceof String valueString) {
-                        newArguments.put(name, ZonedDateTime.parse(valueString));
-                    } else {
-                        newArguments.put(name, value);
-                    }
-                    break;
-                default:
-                    newArguments.put(name, value);
-                    break;
+                } catch (NumberFormatException | DateTimeParseException e) {
+                    logger.warn(
+                            "Action {} input parameter '{}': converting value '{}' into type {} failed! Input parameter is ignored.",
+                            actionType.getUID(), input.getName(), value, input.getType());
+                }
+            } else {
+                newArguments.put(name, value);
             }
         }
         return newArguments;
