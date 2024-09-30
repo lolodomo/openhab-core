@@ -56,6 +56,8 @@ public class ActionInputsToConfigDescriptionParameters {
 
     /**
      * Maps an {@link Input} to a {@link ConfigDescriptionParameter}.
+     * <br>
+     * When adding new input types, remember to update {@link SerialisedInputsToActionInputs} as well!
      *
      * @param input the input to map to a config description parameter
      * @return the config description parameter or null if the input parameter has an unsupported type
