@@ -107,6 +107,9 @@ public class ActionInputsToConfigDescriptionParameters {
             case "java.time.ZonedDateTime":
                 context = "datetime";
                 break;
+            case "org.openhab.core.library.types.DecimalType":
+                parameterType = ConfigDescriptionParameter.Type.DECIMAL;
+                break;
             case "org.openhab.core.library.types.QuantityType":
                 break;
             default:
@@ -114,7 +117,8 @@ public class ActionInputsToConfigDescriptionParameters {
                 break;
         }
         if (!supported) {
-            LOGGER.info("Unsupported input parameter '{}' having type {}", input.getName(), input.getType());
+            LOGGER.debug("Input parameter '{}' with type {} cannot be converted into a config description parameter!",
+                    input.getName(), input.getType());
             return null;
         }
 

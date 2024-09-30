@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,7 +24,10 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.openhab.core.automation.type.ActionType;
 import org.openhab.core.automation.type.Input;
+import org.openhab.core.library.types.DecimalType;
 import org.openhab.core.library.types.QuantityType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This is a utility class to convert serialised inputs to the Java types required by the {@link Input}s of a
@@ -33,6 +37,8 @@ import org.openhab.core.library.types.QuantityType;
  */
 @NonNullByDefault
 public class SerialisedInputsToActionInputs {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SerialisedInputsToActionInputs.class);
+
     /**
      * Maps serialised inputs to the Java types required by the {@link Input}s of the given {@link ActionType}.
      *
@@ -59,101 +65,117 @@ public class SerialisedInputsToActionInputs {
      *
      * @param input the input whose type to consider
      * @param argument the serialised argument
-     * @return the mapped argument or null if the input argument was null
+     * @return the mapped argument or null if the input argument was null or mapping failed
      */
     public static @Nullable Object map(Input input, Object argument) {
         if (argument == null) {
             return null;
         }
-        return switch (input.getType()) {
-            case "byte", "java.lang.Byte" -> {
-                if (argument instanceof Double valueDouble) {
-                    yield Byte.valueOf(valueDouble.byteValue());
-                } else if (argument instanceof String valueString) {
-                    yield Byte.valueOf(valueString);
-                } else {
-                    yield argument;
+        try {
+            return switch (input.getType()) {
+                case "byte", "java.lang.Byte" -> {
+                    if (argument instanceof Double valueDouble) {
+                        yield Byte.valueOf(valueDouble.byteValue());
+                    } else if (argument instanceof String valueString) {
+                        yield Byte.valueOf(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "short", "java.lang.Short" -> {
-                if (argument instanceof Double valueDouble) {
-                    yield Short.valueOf(valueDouble.shortValue());
-                } else if (argument instanceof String valueString) {
-                    yield Short.valueOf(valueString);
-                } else {
-                    yield argument;
+                case "short", "java.lang.Short" -> {
+                    if (argument instanceof Double valueDouble) {
+                        yield Short.valueOf(valueDouble.shortValue());
+                    } else if (argument instanceof String valueString) {
+                        yield Short.valueOf(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "int", "java.lang.Integer" -> {
-                if (argument instanceof Double valueDouble) {
-                    yield Integer.valueOf(valueDouble.intValue());
-                } else if (argument instanceof String valueString) {
-                    yield Integer.valueOf(valueString);
-                } else {
-                    yield argument;
+                case "int", "java.lang.Integer" -> {
+                    if (argument instanceof Double valueDouble) {
+                        yield Integer.valueOf(valueDouble.intValue());
+                    } else if (argument instanceof String valueString) {
+                        yield Integer.valueOf(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "long", "java.lang.Long" -> {
-                if (argument instanceof Double valueDouble) {
-                    yield Long.valueOf(valueDouble.longValue());
-                } else if (argument instanceof String valueString) {
-                    yield Long.valueOf(valueString);
-                } else {
-                    yield argument;
+                case "long", "java.lang.Long" -> {
+                    if (argument instanceof Double valueDouble) {
+                        yield Long.valueOf(valueDouble.longValue());
+                    } else if (argument instanceof String valueString) {
+                        yield Long.valueOf(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "float", "java.lang.Float" -> {
-                if (argument instanceof Double valueDouble) {
-                    yield Float.valueOf(valueDouble.floatValue());
-                } else if (argument instanceof String valueString) {
-                    yield Float.valueOf(valueString);
-                } else {
-                    yield argument;
+                case "float", "java.lang.Float" -> {
+                    if (argument instanceof Double valueDouble) {
+                        yield Float.valueOf(valueDouble.floatValue());
+                    } else if (argument instanceof String valueString) {
+                        yield Float.valueOf(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "double", "java.lang.Double" -> {
-                if (argument instanceof String valueString) {
-                    yield Double.valueOf(valueString);
-                } else {
-                    yield argument;
+                case "double", "java.lang.Double" -> {
+                    if (argument instanceof String valueString) {
+                        yield Double.valueOf(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "java.time.LocalDate" -> {
-                if (argument instanceof String valueString) {
-                    yield LocalDate.parse(valueString);
-                } else {
-                    yield argument;
+                case "java.time.LocalDate" -> {
+                    if (argument instanceof String valueString) {
+                        yield LocalDate.parse(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "java.time.LocalTime" -> {
-                if (argument instanceof String valueString) {
-                    yield LocalTime.parse(valueString);
-                } else {
-                    yield argument;
+                case "java.time.LocalTime" -> {
+                    if (argument instanceof String valueString) {
+                        yield LocalTime.parse(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "java.time.LocalDateTime" -> {
-                if (argument instanceof String valueString) {
-                    yield LocalDateTime.parse(valueString);
-                } else {
-                    yield argument;
+                case "java.time.LocalDateTime" -> {
+                    if (argument instanceof String valueString) {
+                        yield LocalDateTime.parse(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "java.time.ZonedDateTime" -> {
-                if (argument instanceof String valueString) {
-                    yield ZonedDateTime.parse(valueString);
-                } else {
-                    yield argument;
+                case "java.time.ZonedDateTime" -> {
+                    if (argument instanceof String valueString) {
+                        yield ZonedDateTime.parse(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            case "org.openhab.core.library.types.QuantityType" -> {
-                if (argument instanceof String valueString) {
-                    yield QuantityType.valueOf(valueString);
-                } else {
-                    yield argument;
+                case "org.openhab.core.library.types.DecimalType" -> {
+                    if (argument instanceof Double valueDouble) {
+                        yield new DecimalType(valueDouble);
+                    } else if (argument instanceof String valueString) {
+                        yield new DecimalType(valueString);
+                    } else {
+                        yield argument;
+                    }
                 }
-            }
-            default -> argument;
-        };
+                case "org.openhab.core.library.types.QuantityType" -> {
+                    if (argument instanceof String valueString) {
+                        yield QuantityType.valueOf(valueString);
+                    } else {
+                        yield argument;
+                    }
+                }
+                default -> argument;
+            };
+        } catch (NumberFormatException | DateTimeParseException e) {
+            LOGGER.warn(
+                    "Action input parameter '{}': Converting value '{}' into type {} failed! Input parameter is ignored.",
+                    input.getName(), argument, input.getType());
+            return null;
+        }
     }
 }
