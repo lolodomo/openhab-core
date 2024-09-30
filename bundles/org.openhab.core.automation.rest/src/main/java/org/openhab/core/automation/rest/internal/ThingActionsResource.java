@@ -13,13 +13,7 @@
 package org.openhab.core.automation.rest.internal;
 
 import java.lang.reflect.Method;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,8 +45,8 @@ import org.openhab.core.automation.type.Input;
 import org.openhab.core.automation.type.ModuleTypeRegistry;
 import org.openhab.core.automation.type.Output;
 import org.openhab.core.automation.util.ModuleBuilder;
+import org.openhab.core.automation.util.mapper.ThingActionInputsToConfigDescriptionParameters;
 import org.openhab.core.config.core.ConfigDescriptionParameter;
-import org.openhab.core.config.core.ConfigDescriptionParameterBuilder;
 import org.openhab.core.config.core.Configuration;
 import org.openhab.core.config.core.dto.ConfigDescriptionDTOMapper;
 import org.openhab.core.config.core.dto.ConfigDescriptionParameterDTO;
@@ -60,7 +54,6 @@ import org.openhab.core.io.rest.LocaleService;
 import org.openhab.core.io.rest.RESTConstants;
 import org.openhab.core.io.rest.RESTResource;
 import org.openhab.core.io.rest.Stream2JSONInputStream;
-import org.openhab.core.library.types.DecimalType;
 import org.openhab.core.thing.ThingUID;
 import org.openhab.core.thing.binding.ThingActions;
 import org.openhab.core.thing.binding.ThingActionsScope;
@@ -186,16 +179,8 @@ public class ThingActionsResource implements RESTResource {
                     continue;
                 }
 
-                List<ConfigDescriptionParameter> inputParameters = new ArrayList<>();
-                for (Input input : actionType.getInputs()) {
-                    ConfigDescriptionParameter parameter = convertToConfigDescriptionParameter(input);
-                    if (parameter != null) {
-                        inputParameters.add(parameter);
-                    } else {
-                        inputParameters = null;
-                        break;
-                    }
-                }
+                List<ConfigDescriptionParameter> inputParameters = ThingActionInputsToConfigDescriptionParameters
+                        .map(actionType.getInputs());
 
                 ThingActionDTO actionDTO = new ThingActionDTO();
                 actionDTO.actionUid = actionType.getUID();
@@ -249,199 +234,13 @@ public class ThingActionsResource implements RESTResource {
         }
 
         try {
-            Map<String, Object> returnValue = Objects.requireNonNullElse(
-                    handler.execute(adjustTypForfMethodArguments(actionType, actionInputs)), Map.of());
+            Map<String, Object> returnValue = Objects.requireNonNullElse(handler.execute(actionInputs), Map.of());
             moduleHandlerFactory.ungetHandler(action, ruleUID, handler);
             return Response.ok(returnValue).build();
         } catch (Exception e) {
             moduleHandlerFactory.ungetHandler(action, ruleUID, handler);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(e).build();
         }
-    }
-
-    private @Nullable ConfigDescriptionParameter convertToConfigDescriptionParameter(Input input) {
-        boolean supported = true;
-        ConfigDescriptionParameter.Type parameterType = ConfigDescriptionParameter.Type.TEXT;
-        String defaultValue = null;
-        boolean required = false;
-        String context = null;
-        switch (input.getType()) {
-            case "boolean":
-                defaultValue = "false";
-                required = true;
-            case "java.lang.Boolean":
-                parameterType = ConfigDescriptionParameter.Type.BOOLEAN;
-                break;
-            case "byte":
-            case "short":
-            case "int":
-            case "long":
-                defaultValue = "0";
-                required = true;
-            case "java.lang.Byte":
-            case "java.lang.Short":
-            case "java.lang.Integer":
-            case "java.lang.Long":
-                parameterType = ConfigDescriptionParameter.Type.INTEGER;
-                break;
-            case "float":
-            case "double":
-                defaultValue = "0";
-                required = true;
-            case "java.lang.Float":
-            case "java.lang.Double":
-            case "org.openhab.core.library.types.DecimalType":
-                parameterType = ConfigDescriptionParameter.Type.DECIMAL;
-                break;
-            case "java.lang.String":
-                parameterType = ConfigDescriptionParameter.Type.TEXT;
-                break;
-            case "java.time.LocalDate":
-                parameterType = ConfigDescriptionParameter.Type.TEXT;
-                context = "date";
-                break;
-            case "java.time.LocalTime":
-                parameterType = ConfigDescriptionParameter.Type.TEXT;
-                context = "time";
-                break;
-            case "java.time.LocalDateTime":
-            case "java.time.ZonedDateTime":
-                parameterType = ConfigDescriptionParameter.Type.TEXT;
-                context = "datetime";
-                break;
-            default:
-                supported = false;
-                break;
-        }
-        if (!supported) {
-            logger.debug("Input parameter '{}' with type {} cannot be converted into a config description parameter!",
-                    input.getName(), input.getType());
-            return null;
-        }
-
-        ConfigDescriptionParameterBuilder builder = ConfigDescriptionParameterBuilder
-                .create(input.getName(), parameterType).withLabel(input.getLabel())
-                .withDescription(input.getDescription()).withReadOnly(false)
-                .withRequired(required || input.isRequired()).withContext(context);
-        if (!input.getDefaultValue().isEmpty()) {
-            builder = builder.withDefault(input.getDefaultValue());
-        } else if (defaultValue != null) {
-            builder = builder.withDefault(defaultValue);
-        }
-        return builder.build();
-    }
-
-    private Map<String, Object> adjustTypForfMethodArguments(ActionType actionType, Map<String, Object> arguments) {
-        Map<String, Object> newArguments = new HashMap<>();
-        for (Input input : actionType.getInputs()) {
-            String name = input.getName();
-            Object value = arguments.get(name);
-            if (value == null) {
-                continue;
-            }
-            if (value instanceof Double valueDouble) {
-                // When an integer value is provided as input value, the value type in the Map is Double.
-                // We have to convert Double type into the target type.
-                try {
-                    switch (input.getType()) {
-                        case "byte":
-                        case "java.lang.Byte":
-                            newArguments.put(name, Byte.valueOf(valueDouble.byteValue()));
-                            break;
-                        case "short":
-                        case "java.lang.Short":
-                            newArguments.put(name, Short.valueOf(valueDouble.shortValue()));
-                            break;
-                        case "int":
-                        case "java.lang.Integer":
-                            newArguments.put(name, Integer.valueOf(valueDouble.intValue()));
-                            break;
-                        case "long":
-                        case "java.lang.Long":
-                            newArguments.put(name, Long.valueOf(valueDouble.longValue()));
-                            break;
-                        case "float":
-                        case "java.lang.Float":
-                            newArguments.put(name, Float.valueOf(valueDouble.floatValue()));
-                            break;
-                        case "org.openhab.core.library.types.DecimalType":
-                            newArguments.put(name, new DecimalType(valueDouble));
-                            break;
-                        default:
-                            newArguments.put(name, value);
-                            break;
-                    }
-                } catch (NumberFormatException e) {
-                    logger.warn(
-                            "Action {} input parameter '{}': converting value {} into type {} failed! Input parameter is ignored.",
-                            actionType.getUID(), input.getName(), value, input.getType());
-                }
-            } else if (value instanceof String valueString) {
-                // String value is accepted to instantiate few target types
-                try {
-                    switch (input.getType()) {
-                        case "boolean":
-                        case "java.lang.Boolean":
-                            newArguments.put(name, Boolean.valueOf(valueString.toLowerCase()));
-                            break;
-                        case "byte":
-                        case "java.lang.Byte":
-                            newArguments.put(name, Byte.valueOf(valueString));
-                            break;
-                        case "short":
-                        case "java.lang.Short":
-                            newArguments.put(name, Short.valueOf(valueString));
-                            break;
-                        case "int":
-                        case "java.lang.Integer":
-                            newArguments.put(name, Integer.valueOf(valueString));
-                            break;
-                        case "long":
-                        case "java.lang.Long":
-                            newArguments.put(name, Long.valueOf(valueString));
-                            break;
-                        case "float":
-                        case "java.lang.Float":
-                            newArguments.put(name, Float.valueOf(valueString));
-                            break;
-                        case "double":
-                        case "java.lang.Double":
-                            newArguments.put(name, Double.valueOf(valueString));
-                            break;
-                        case "org.openhab.core.library.types.DecimalType":
-                            newArguments.put(name, new DecimalType(valueString));
-                            break;
-                        case "java.time.LocalDate":
-                            // Accepted format is: 2007-12-03
-                            newArguments.put(name, LocalDate.parse(valueString));
-                            break;
-                        case "java.time.LocalTime":
-                            // Accepted format is: 10:15:30
-                            newArguments.put(name, LocalTime.parse(valueString));
-                            break;
-                        case "java.time.LocalDateTime":
-                            // Accepted format is: 2007-12-03T10:15:30
-                            // TODO documentation mention YYYY-MM-DD hh:mm
-                            newArguments.put(name, LocalDateTime.parse(valueString));
-                            break;
-                        case "java.time.ZonedDateTime":
-                            // Accepted format is: 2007-12-03T10:15:30+01:00[Europe/Paris]
-                            newArguments.put(name, ZonedDateTime.parse(valueString));
-                            break;
-                        default:
-                            newArguments.put(name, value);
-                            break;
-                    }
-                } catch (NumberFormatException | DateTimeParseException e) {
-                    logger.warn(
-                            "Action {} input parameter '{}': converting value '{}' into type {} failed! Input parameter is ignored.",
-                            actionType.getUID(), input.getName(), value, input.getType());
-                }
-            } else {
-                newArguments.put(name, value);
-            }
-        }
-        return newArguments;
     }
 
     private @Nullable String getScope(ThingActions actions) {
