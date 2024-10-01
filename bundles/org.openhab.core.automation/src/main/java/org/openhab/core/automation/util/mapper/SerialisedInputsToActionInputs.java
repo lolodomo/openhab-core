@@ -89,6 +89,7 @@ public class SerialisedInputsToActionInputs {
                 LOGGER.warn(
                         "Action {} input parameter '{}': converting value {} into type {} failed! Input parameter is ignored.",
                         actionType.getUID(), input.getName(), argument, input.getType());
+                return null;
             }
         } else if (argument instanceof String valueString) {
             // String value is accepted to instantiate few target types
@@ -122,6 +123,7 @@ public class SerialisedInputsToActionInputs {
                 LOGGER.warn(
                         "Action {} input parameter '{}': converting value '{}' into type {} failed! Input parameter is ignored.",
                         actionType.getUID(), input.getName(), argument, input.getType());
+                return null;
             }
         }
         return argument;
