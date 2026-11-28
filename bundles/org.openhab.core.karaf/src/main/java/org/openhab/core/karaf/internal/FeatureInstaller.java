@@ -90,7 +90,6 @@ public class FeatureInstaller implements ConfigurationListener {
     private static final String PROPERTY_MVN_REPOS = "org.ops4j.pax.url.mvn.repositories";
     private static final String KAR_PID = "org.apache.karaf.kar";
     private static final String KAR_STORAGE = "karStorage";
-    private static final String KAR_FEATURES_FILE = "features.cfg";
 
     public static final String FINDER_ADDON_TYPE = "core-config-discovery-addon";
     public static final List<String> ADDON_TYPES = Stream
@@ -101,6 +100,7 @@ public class FeatureInstaller implements ConfigurationListener {
     private final ConfigurationAdmin configurationAdmin;
     private final FeaturesService featuresService;
     private final KarService karService;
+    private final KarExtractionTracker karExtractionTracker;
     private final EventPublisher eventPublisher;
     private final ScheduledExecutorService scheduler;
     private final AtomicBoolean processingConfigQueue = new AtomicBoolean();
@@ -121,6 +121,7 @@ public class FeatureInstaller implements ConfigurationListener {
         this.configurationAdmin = configurationAdmin;
         this.featuresService = featuresService;
         this.karService = karService;
+        this.karExtractionTracker = new KarExtractionTracker(karFile -> karService.install(karFile.toUri()));
         this.eventPublisher = eventPublisher;
 
         scheduler = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("karaf-addons"));
@@ -246,29 +247,13 @@ public class FeatureInstaller implements ConfigurationListener {
                 Dictionary<String, Object> felixProperties = configurations[0].getProperties();
                 String addonsDirectory = (String) felixProperties.get("felix.fileinstall.dir");
                 if (addonsDirectory != null) {
-                    return allKarsInstalled(Path.of(addonsDirectory), getKarStorage(), karRepos);
+                    return karExtractionTracker.allKarsInstalled(Path.of(addonsDirectory), getKarStorage(), karRepos);
                 }
             }
         } catch (Exception ignored) {
         }
         logger.warn("Could not determine addons folder, its content or the list of installed repositories!");
         return false;
-    }
-
-    /**
-     * Checks whether all .kar files in the add-ons folder are installed and completely extracted.
-     *
-     * Karaf lists a KAR as installed as soon as its extraction starts, so a listed KAR is only considered as installed
-     * once the features repository list exists, which Karaf writes when the extraction is complete. This can be
-     * removed once Karaf contains https://github.com/apache/karaf/pull/3164.
-     */
-    static boolean allKarsInstalled(Path addonsDirectory, Path karStorage, List<String> karRepos) throws IOException {
-        try (Stream<Path> files = Files.list(addonsDirectory)) {
-            return files.map(Path::getFileName).map(Path::toString).filter(file -> file.endsWith(".kar"))
-                    .map(karFileName -> karFileName.substring(0, karFileName.lastIndexOf(".")))
-                    .allMatch(karName -> karRepos.contains(karName)
-                            && Files.isRegularFile(karStorage.resolve(karName).resolve(KAR_FEATURES_FILE)));
-        }
     }
 
     private Path getKarStorage() throws IOException, InvalidSyntaxException {
